@@ -2,8 +2,7 @@ import os
 import sys
 import subprocess
 
-# --- AUTOMATIC SYSTEM FIXER ---
-# This bypasses the libGL/libgthread errors by ensuring the correct headless version is used
+# --- AUTO-INSTALLER FOR CLOUD ENVIRONMENT ---
 try:
     import cv2
 except ImportError:
@@ -21,14 +20,14 @@ import tempfile
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="YOLOv8 Vision Suite - Pro", layout="wide")
 
-# --- UI DESIGN (Modern Dark Theme matching your CTK style) ---
+# --- CUSTOM THEME (Dark Mode) ---
 st.markdown("""
     <style>
     .stApp { background-color: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; }
-    .header { background-color: #1a1a1a; padding: 20px; text-align: center; border-bottom: 2px solid #333; }
-    div.stButton > button { border-radius: 10px; height: 3.5em; font-weight: bold; width: 100%; transition: 0.3s; color: white; }
-    /* Mimic your Button Colors */
-    div.stButton > button:hover { border: 1px solid #1f538d; }
+    .header { text-align: center; border-bottom: 2px solid #333; padding: 15px; margin-bottom: 20px; }
+    div.stButton > button { border-radius: 10px; height: 3.5em; font-weight: bold; width: 100%; color: white; }
+    /* Navigation Button Hover Effect */
+    div.stButton > button:hover { border: 1px solid #1f538d; background-color: #1a1a1a; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -39,16 +38,13 @@ def load_yolo():
 
 model = load_yolo()
 
-# --- HEADER ---
 st.markdown('<div class="header"><h1>YOLOv8 Vision Suite - Pro</h1></div>', unsafe_allow_html=True)
 
-# --- NAVIGATION STATE ---
 if "mode" not in st.session_state:
     st.session_state.mode = "home"
 
-# --- CONTROL PANEL (Your Buttons) ---
+# --- CONTROL PANEL ---
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
     if st.button("📁 Select Video"): st.session_state.mode = "video"
 with col2:
@@ -60,12 +56,10 @@ with col4:
 
 st.divider()
 
-# --- FUNCTIONALITY MODULES ---
+# --- APP MODULES ---
 
-# 1. VIDEO MODULE
 if st.session_state.mode == "video":
-    st.subheader("Video Analysis")
-    uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov", "mkv"])
+    uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
     if uploaded_video:
         tfile = tempfile.NamedTemporaryFile(delete=False) 
         tfile.write(uploaded_video.read())
@@ -74,51 +68,36 @@ if st.session_state.mode == "video":
         while vf.isOpened():
             ret, frame = vf.read()
             if not ret: break
-            results = model.predict(frame, conf=0.45, verbose=False)
+            results = model.predict(frame, conf=0.4, verbose=False)
             st_frame.image(results[0].plot(), channels="BGR", use_container_width=True)
         vf.release()
 
-# 2. IMAGE MODULE
 elif st.session_state.mode == "image":
-    st.subheader("Image Analysis")
-    uploaded_img = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png", "bmp", "webp"])
+    uploaded_img = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
     if uploaded_img:
         img = Image.open(uploaded_img)
         img_array = np.array(img)
-        # Convert RGB to BGR for YOLO processing
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-        results = model.predict(img_bgr, conf=0.45, verbose=False)
+        results = model.predict(img_bgr, conf=0.4, verbose=False)
         st.image(results[0].plot(), channels="BGR", use_container_width=True)
 
-# 3. WEBCAM MODULE (The Mobile Fix)
 elif st.session_state.mode == "webcam":
-    st.subheader("Real-Time Object Tracker (Back Camera)")
-
     def video_frame_callback(frame):
         img = frame.to_ndarray(format="bgr24")
-        # Exact logic from your desktop code: model.track + bytetrack
+        # ByteTrack logic as requested
         results = model.track(img, persist=True, tracker="bytetrack.yaml", verbose=False)
-        annotated_frame = results[0].plot()
-        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
-
-    # RTC Configuration for stable mobile streaming
-    RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+        return av.VideoFrame.from_ndarray(results[0].plot(), format="bgr24")
 
     webrtc_streamer(
         key="pro-tracker",
         mode=WebRtcMode.SENDRECV,
-        rtc_configuration=RTC_CONFIGURATION,
+        rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
         video_frame_callback=video_frame_callback,
         media_stream_constraints={
-            "video": {
-                "facingMode": "environment", # THIS FORCES THE BACK CAMERA
-                "width": {"ideal": 1280},
-                "height": {"ideal": 720}
-            },
+            "video": {"facingMode": "environment"}, # BACK CAMERA
             "audio": False
         },
         async_processing=True,
     )
-
 else:
-    st.info("System Ready. Please select a source from the Control Panel.")
+    st.info("System Ready. Select a mode from the Control Panel.")
