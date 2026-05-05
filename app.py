@@ -1,9 +1,16 @@
 import os
-# Force headless mode to prevent libGL/libgthread errors
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
+import sys
+import subprocess
+
+# --- AUTOMATIC SYSTEM FIXER ---
+# This bypasses the libGL/libgthread errors by ensuring the correct headless version is used
+try:
+    import cv2
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python-headless"])
+    import cv2
 
 import streamlit as st
-import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
@@ -14,14 +21,14 @@ import tempfile
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="YOLOv8 Vision Suite - Pro", layout="wide")
 
-# --- UI DESIGN (Matching your CustomTkinter Theme) ---
+# --- UI DESIGN (Modern Dark Theme matching your CTK style) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #1a1a1a; color: white; }
-    .header { text-align: center; border-bottom: 2px solid #333; padding: 15px; margin-bottom: 20px; }
-    div.stButton > button { border-radius: 10px; height: 3.5em; font-weight: bold; color: white; width: 100%; }
-    /* Match your specific button colors */
-    .stButton>button:first-child { background-color: #1f538d; } /* Video */
+    .stApp { background-color: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; }
+    .header { background-color: #1a1a1a; padding: 20px; text-align: center; border-bottom: 2px solid #333; }
+    div.stButton > button { border-radius: 10px; height: 3.5em; font-weight: bold; width: 100%; transition: 0.3s; color: white; }
+    /* Mimic your Button Colors */
+    div.stButton > button:hover { border: 1px solid #1f538d; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -39,7 +46,7 @@ st.markdown('<div class="header"><h1>YOLOv8 Vision Suite - Pro</h1></div>', unsa
 if "mode" not in st.session_state:
     st.session_state.mode = "home"
 
-# --- CONTROL PANEL BUTTONS ---
+# --- CONTROL PANEL (Your Buttons) ---
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -53,67 +60,65 @@ with col4:
 
 st.divider()
 
-# --- FUNCTIONALITY ---
+# --- FUNCTIONALITY MODULES ---
 
-# 1. VIDEO ANALYSIS
+# 1. VIDEO MODULE
 if st.session_state.mode == "video":
-    st.subheader("🎥 Video Object Detection")
-    uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
-    
+    st.subheader("Video Analysis")
+    uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov", "mkv"])
     if uploaded_video:
         tfile = tempfile.NamedTemporaryFile(delete=False) 
         tfile.write(uploaded_video.read())
         vf = cv2.VideoCapture(tfile.name)
-        
         st_frame = st.empty()
         while vf.isOpened():
             ret, frame = vf.read()
             if not ret: break
-            
-            # Predict and Plot
-            results = model.predict(frame, conf=0.4, verbose=False)
-            res_plotted = results[0].plot()
-            
-            # Convert to RGB for Streamlit
-            st_frame.image(res_plotted, channels="BGR", use_container_width=True)
+            results = model.predict(frame, conf=0.45, verbose=False)
+            st_frame.image(results[0].plot(), channels="BGR", use_container_width=True)
         vf.release()
 
-# 2. IMAGE ANALYSIS
+# 2. IMAGE MODULE
 elif st.session_state.mode == "image":
-    st.subheader("🖼️ Image Object Detection")
-    uploaded_img = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
-    
+    st.subheader("Image Analysis")
+    uploaded_img = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png", "bmp", "webp"])
     if uploaded_img:
-        file_bytes = np.asarray(bytearray(uploaded_img.read()), dtype=np.uint8)
-        img = cv2.imdecode(file_bytes, 1)
-        results = model.predict(img, conf=0.4, verbose=False)
-        st.image(results[0].plot(), channels="BGR", caption="Detection Result", use_container_width=True)
+        img = Image.open(uploaded_img)
+        img_array = np.array(img)
+        # Convert RGB to BGR for YOLO processing
+        img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        results = model.predict(img_bgr, conf=0.45, verbose=False)
+        st.image(results[0].plot(), channels="BGR", use_container_width=True)
 
-# 3. WEBCAM (BACK CAMERA)
+# 3. WEBCAM MODULE (The Mobile Fix)
 elif st.session_state.mode == "webcam":
-    st.subheader("📱 Real-Time Back Camera Tracker")
+    st.subheader("Real-Time Object Tracker (Back Camera)")
 
     def video_frame_callback(frame):
         img = frame.to_ndarray(format="bgr24")
-        # Persistent tracking with ByteTrack
-        results = model.track(img, persist=True, tracker="bytetrack.yaml", conf=0.4, verbose=False)
+        # Exact logic from your desktop code: model.track + bytetrack
+        results = model.track(img, persist=True, tracker="bytetrack.yaml", verbose=False)
         annotated_frame = results[0].plot()
         return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
+    # RTC Configuration for stable mobile streaming
     RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
     webrtc_streamer(
-        key="vision-pro",
+        key="pro-tracker",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTC_CONFIGURATION,
         video_frame_callback=video_frame_callback,
         media_stream_constraints={
-            "video": {"facingMode": "environment"}, # FORCES BACK CAMERA
+            "video": {
+                "facingMode": "environment", # THIS FORCES THE BACK CAMERA
+                "width": {"ideal": 1280},
+                "height": {"ideal": 720}
+            },
             "audio": False
         },
         async_processing=True,
     )
 
 else:
-    st.info("Select a mode above to begin your analysis.")
-
+    st.info("System Ready. Please select a source from the Control Panel.")
