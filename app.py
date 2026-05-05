@@ -1,13 +1,5 @@
 import os
 import sys
-
-# --- EMERGENCY TORNADO FIX ---
-try:
-    import tornado
-except ImportError:
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "tornado"])
-
 import streamlit as st
 import cv2
 import numpy as np
@@ -17,13 +9,13 @@ from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 import tempfile
 
-# --- UI DESIGN ---
+# --- UI SETTINGS ---
 st.set_page_config(page_title="YOLOv8 Vision Suite - Pro", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #1a1a1a; color: white; }
-    .header { text-align: center; border-bottom: 2px solid #333; padding: 15px; }
+    .header { text-align: center; border-bottom: 2px solid #333; padding: 15px; margin-bottom: 20px; }
     div.stButton > button { border-radius: 10px; height: 3.5em; font-weight: bold; width: 100%; color: white; }
     </style>
     """, unsafe_allow_html=True)
@@ -39,7 +31,6 @@ st.markdown('<div class="header"><h1>YOLOv8 Vision Suite - Pro</h1></div>', unsa
 if "mode" not in st.session_state:
     st.session_state.mode = "home"
 
-# --- CONTROLS ---
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     if st.button("📁 Select Video"): st.session_state.mode = "video"
@@ -52,7 +43,6 @@ with col4:
 
 st.divider()
 
-# --- MODES ---
 if st.session_state.mode == "video":
     uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
     if uploaded_video:
@@ -83,15 +73,15 @@ elif st.session_state.mode == "webcam":
         return av.VideoFrame.from_ndarray(results[0].plot(), format="bgr24")
 
     webrtc_streamer(
-        key="pro-tracker-web",
+        key="pro-tracker-final",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
         video_frame_callback=video_frame_callback,
         media_stream_constraints={
-            "video": {"facingMode": "environment"}, # FORCES BACK CAMERA
+            "video": {"facingMode": "environment"}, 
             "audio": False
         },
         async_processing=True,
     )
 else:
-    st.info("System Ready. Select a mode above.")
+    st.info("System Ready. Select a mode to begin.")
