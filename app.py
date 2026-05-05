@@ -1,15 +1,13 @@
 import os
 import sys
-import subprocess
 
-# --- AUTO-INSTALLER FOR CLOUD ENVIRONMENT ---
-try:
-    import cv2
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python-headless"])
-    import cv2
+# --- THE ULTIMATE BYPASS ---
+# This tells Python to ignore the missing system libraries 
+# and use the ones bundled inside opencv-python-headless
+os.environ["LD_LIBRARY_PATH"] = "/home/adminuser/venv/lib/python3.11/site-packages/cv2/qt/plugins"
 
 import streamlit as st
+import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
@@ -17,21 +15,17 @@ from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 import tempfile
 
-# --- PAGE CONFIG ---
+# --- UI DESIGN (Your Dark Style) ---
 st.set_page_config(page_title="YOLOv8 Vision Suite - Pro", layout="wide")
 
-# --- CUSTOM THEME (Dark Mode) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; }
-    .header { text-align: center; border-bottom: 2px solid #333; padding: 15px; margin-bottom: 20px; }
+    .stApp { background-color: #1a1a1a; color: white; }
+    .header { text-align: center; border-bottom: 2px solid #333; padding: 15px; }
     div.stButton > button { border-radius: 10px; height: 3.5em; font-weight: bold; width: 100%; color: white; }
-    /* Navigation Button Hover Effect */
-    div.stButton > button:hover { border: 1px solid #1f538d; background-color: #1a1a1a; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MODEL LOADING ---
 @st.cache_resource
 def load_yolo():
     return YOLO("yolov8n.pt")
@@ -43,7 +37,7 @@ st.markdown('<div class="header"><h1>YOLOv8 Vision Suite - Pro</h1></div>', unsa
 if "mode" not in st.session_state:
     st.session_state.mode = "home"
 
-# --- CONTROL PANEL ---
+# --- CONTROLS ---
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     if st.button("📁 Select Video"): st.session_state.mode = "video"
@@ -56,8 +50,7 @@ with col4:
 
 st.divider()
 
-# --- APP MODULES ---
-
+# --- FUNCTIONALITY ---
 if st.session_state.mode == "video":
     uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
     if uploaded_video:
@@ -84,7 +77,7 @@ elif st.session_state.mode == "image":
 elif st.session_state.mode == "webcam":
     def video_frame_callback(frame):
         img = frame.to_ndarray(format="bgr24")
-        # ByteTrack logic as requested
+        # Exact logic: model.track + ByteTrack
         results = model.track(img, persist=True, tracker="bytetrack.yaml", verbose=False)
         return av.VideoFrame.from_ndarray(results[0].plot(), format="bgr24")
 
@@ -94,10 +87,10 @@ elif st.session_state.mode == "webcam":
         rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
         video_frame_callback=video_frame_callback,
         media_stream_constraints={
-            "video": {"facingMode": "environment"}, # BACK CAMERA
+            "video": {"facingMode": "environment"}, # FORCES BACK CAMERA
             "audio": False
         },
         async_processing=True,
     )
 else:
-    st.info("System Ready. Select a mode from the Control Panel.")
+    st.info("System Ready. Select a mode above.")
